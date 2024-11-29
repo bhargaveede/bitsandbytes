@@ -7,7 +7,6 @@ from bitsandbytes.utils import QuantState
 from .base import Backend
 from .cpu_xpu_common import (
     dequantize_4bit_impl,
-    double_quant_impl,
     gemm_4bit_impl,
     igemmlt_impl,
     mm_dequant_impl,
@@ -72,8 +71,9 @@ class HPUBackend(Backend):
         out: Optional[torch.Tensor] = None,
         Sout: Optional[Tuple[torch.Size, str]] = None,
         dtype=torch.int32,
-    ) -> Union[torch.Tensor, Tuple[Optional[Tuple[torch.Tensor, Tuple[torch.Size, str]]]]]:
-        assert_on_hpu([A, B])
+    ) -> Union[torch.Tensor, Tuple[Optional[Tuple[torch.Tensor, Tuple[torch.Size,
+                                                                      str]]]]]:
+
         return igemmlt_impl(A, B, SA, SB, out, Sout, dtype)
 
     def mm_dequant(
@@ -125,10 +125,9 @@ class HPUBackend(Backend):
     ) -> Tuple[torch.Tensor, QuantState]:
         if blocksize is None:
             blocksize = 64
-
-        assert_on_hpu([A, absmax, out])
-        assert quant_storage == torch.uint8, "HPU backend only supports uint8 quant_storage"
-        return quantize_4bit_impl(A, absmax, out, blocksize, compress_statistics, quant_type)
+        assert quant_storage == torch.uint8
+        return quantize_4bit_impl(
+            A, absmax, out, blocksize, compress_statistics, quant_type)
 
     def dequantize_4bit(
         self,
@@ -139,6 +138,7 @@ class HPUBackend(Backend):
         blocksize: int = 64,
         quant_type: Literal["fp4", "nf4"] = "fp4",
     ) -> torch.Tensor:
+    
         if blocksize is None:
             blocksize = 64
             
@@ -156,7 +156,9 @@ class HPUBackend(Backend):
     ) -> torch.Tensor:
         assert_on_hpu([A, B, out])
         if state is None:
-            raise ValueError("state cannot be None. gemv_4bit() requires the state from quantize_4bit()")
+            raise ValueError(
+                "state cannot be None. gemv_4bit() requires the state from quantize_4bit()"
+            )
 
         return gemm_4bit_impl(A, B, out, transposed_A, transposed_B, state)
 
