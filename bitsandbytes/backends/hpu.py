@@ -1,14 +1,12 @@
 from typing import Literal, Optional, Tuple, Union
 
 import torch
-import habana_frameworks.torch
 
 from bitsandbytes.utils import QuantState
 
 from .base import Backend
 from .cpu_xpu_common import (
     dequantize_4bit_impl,
-    double_quant_impl,
     gemm_4bit_impl,
     igemmlt_impl,
     mm_dequant_impl,
@@ -58,7 +56,8 @@ class HPUBackend(Backend):
         out: Optional[torch.Tensor] = None,
         Sout: Optional[Tuple[torch.Size, str]] = None,
         dtype=torch.int32,
-    ) -> Union[torch.Tensor, Tuple[Optional[Tuple[torch.Tensor, Tuple[torch.Size, str]]]]]:
+    ) -> Union[torch.Tensor, Tuple[Optional[Tuple[torch.Tensor, Tuple[torch.Size,
+                                                                      str]]]]]:
 
         return igemmlt_impl(A, B, SA, SB, out, Sout, dtype)
 
@@ -113,7 +112,8 @@ class HPUBackend(Backend):
         if blocksize is None:
             blocksize = 64
         assert quant_storage == torch.uint8
-        return quantize_4bit_impl(A, absmax, out, blocksize, compress_statistics, quant_type)
+        return quantize_4bit_impl(
+            A, absmax, out, blocksize, compress_statistics, quant_type)
 
     def dequantize_4bit(
         self,
@@ -124,7 +124,7 @@ class HPUBackend(Backend):
         blocksize: int = 64,
         quant_type: Literal["fp4", "nf4"] = "fp4",
     ) -> torch.Tensor:
-        
+    
         if blocksize is None:
             blocksize = 64
         return dequantize_4bit_impl(A, quant_state, absmax, out, blocksize, quant_type)
@@ -140,8 +140,8 @@ class HPUBackend(Backend):
     ) -> torch.Tensor:
 
         if state is None:
-            raise ValueError("state cannot be None. gemv_4bit() requires the state from quantize_4bit()")
+            raise ValueError(
+                "state cannot be None. gemv_4bit() requires the state from quantize_4bit()"
+            )
 
         return gemm_4bit_impl(A, B, out, transposed_A, transposed_B, state)
-
-    
