@@ -19,7 +19,6 @@ from .autograd._functions import (
 )
 from .backends import register_backend
 from .backends.cpu import CPUBackend
-from .backends.hpu import HPUBackend
 from .backends.npu import NPUBackend
 from .cextension import lib
 from .nn import modules
@@ -38,8 +37,11 @@ register_backend("cpu", CPUBackend())
 # Register HPU Backend, if available
 try:
     import habana_frameworks.torch
-    register_backend("hpu", HPUBackend())
+    
+    if hasattr(torch, "hpu") and torch.hpu.is_available():
+        from .backends.hpu import HPUBackend
 
+        register_backend("hpu", HPUBackend())
 except ImportError:
     print("Unable to register HPU")
 
