@@ -7,7 +7,6 @@ from bitsandbytes.utils import QuantState
 from .base import Backend
 from .cpu_xpu_common import (
     dequantize_4bit_impl,
-    double_quant_impl,
     gemm_4bit_impl,
     igemmlt_impl,
     mm_dequant_impl,
@@ -156,7 +155,9 @@ class HPUBackend(Backend):
     ) -> torch.Tensor:
         assert_on_hpu([A, B, out])
         if state is None:
-            raise ValueError("state cannot be None. gemv_4bit() requires the state from quantize_4bit()")
+            raise ValueError(
+                "state cannot be None. gemv_4bit() requires the state from quantize_4bit()"
+            )
 
         return gemm_4bit_impl(A, B, out, transposed_A, transposed_B, state)
 
