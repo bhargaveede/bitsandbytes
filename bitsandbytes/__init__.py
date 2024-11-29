@@ -19,6 +19,7 @@ from .autograd._functions import (
 )
 from .backends import register_backend
 from .backends.cpu import CPUBackend
+from .backends.hpu import HPUBackend
 from .backends.npu import NPUBackend
 from .cextension import lib
 from .nn import modules
@@ -28,10 +29,20 @@ supported_torch_devices = {
     "cuda",  # includes ROCm
     "xpu",  # Intel GPU
     "cpu",
+    "hpu",
 }
 
 # Always register the CPU backend.
 register_backend("cpu", CPUBackend())
+
+# Register HPU Backend, if available
+try:
+    import habana_frameworks.torch
+    register_backend("hpu", HPUBackend())
+
+except:
+    print("Unable to register HPU")
+
 
 # Register either CUDA or ROCm backend, if available.
 # Only one of these backends can be used at a time, since the torch.device semantics are
