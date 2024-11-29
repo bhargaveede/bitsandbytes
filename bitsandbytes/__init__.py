@@ -19,6 +19,7 @@ from .autograd._functions import (
 )
 from .backends import backends, register_backend
 from .backends.cpu import CPUBackend
+from .backends.hpu import HPUBackend
 from .backends.npu import NPUBackend
 from .cextension import lib
 

@@ -58,7 +58,7 @@ class HPUBackend(Backend):
     ):
         """
         Transform tensor A to to_order. It is originally designed for CUDA.
-        For CPU, it returns the original tensor if transpose=False.
+        For HPU, it returns the original tensor if transpose=False.
         Otherwise, it returns the transpose of A
         """
         raise NotImplementedError("Not yet implemented for HPU backend")
