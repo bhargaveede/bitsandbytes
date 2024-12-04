@@ -281,7 +281,7 @@ FP4_QUANT_TABLE = {
 }
 
 
-# @_maybe_torch_compile
+@_maybe_torch_compile
 def quantize_4bit_impl(
     A: Tensor,
     absmax: Tensor = None,
