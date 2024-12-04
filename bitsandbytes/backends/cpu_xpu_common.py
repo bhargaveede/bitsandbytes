@@ -280,7 +280,7 @@ FP4_QUANT_TABLE = {
 }
 
 
-@_maybe_torch_compile
+# @_maybe_torch_compile
 def quantize_4bit_impl(
     A: Tensor,
     absmax: Tensor = None,
@@ -376,7 +376,7 @@ def quantize_4bit_impl(
     return out.unsqueeze(0), state
 
 
-@_maybe_torch_compile
+#@_maybe_torch_compile
 def dequantize_4bit_impl(
     A: Tensor,
     quant_state=None,
