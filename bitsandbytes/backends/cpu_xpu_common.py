@@ -277,7 +277,7 @@ FP4_QUANT_TABLE = {
 }
 
 
-@_maybe_torch_compile
+# @_maybe_torch_compile
 def quantize_4bit_impl(
     A: Tensor,
     absmax: Tensor = None,
@@ -342,7 +342,7 @@ def quantize_4bit_impl(
         scaled_A_rem = torch.clamp(A_reshaped[n - rem :] * (1 / absmax[-1]), -1, 1)
         scaled_A = torch.cat([scaled_A, scaled_A_rem], dim=0)
     # map [-1, 1] to nf4/fp4
-    out_uint8 = torch.empty(scaled_A.shape, dtype=torch.uint8)
+    out_uint8 = torch.empty(scaled_A.shape, dtype=torch.uint8, device=scaled_A.device)
     if quant_type == "nf4":
         for i in range(len(NF4_QUANT_TABLE)):
             out_uint8[scaled_A > NF4_QUANT_TABLE[i]] = i
@@ -373,7 +373,7 @@ def quantize_4bit_impl(
     return out.unsqueeze(0), state
 
 
-@_maybe_torch_compile
+#@_maybe_torch_compile
 def dequantize_4bit_impl(
     A: Tensor,
     quant_state=None,
@@ -452,7 +452,7 @@ def dequantize_4bit_impl(
     out_uint8 = torch.empty(A.size(0) * 2, dtype=torch.uint8, device=A.device)
     out_uint8[::2] = A.bitwise_and(0xF)
     out_uint8[1::2] = A.bitwise_right_shift(4)
-    out_dq = torch.empty(out_uint8.shape).to(quant_state.dtype)
+    out_dq = torch.empty(out_uint8.shape, dtype=quant_state.code.dtype, device= quant_state.code.device)
     for i in range(len(quant_state.code)):
         out_dq[out_uint8 == i] = quant_state.code[i]
 
