@@ -1,6 +1,7 @@
 import subprocess
 from typing import Optional
 import warnings
+import os
 
 import torch
 
@@ -55,7 +56,7 @@ def _ipex_xpu_version_prereq(major, minor):
 
 def _maybe_torch_compile(func):
     # torch.compile requires g++ and pytorch >= 2.0
-    if gxx_available and _torch_version_prereq(2, 0):
+    if gxx_available and _torch_version_prereq(2, 0) and os.getenv('PT_HPU_LAZY_MODE',1)==0:
         options = {}
         # fx_graph_cache requires pytorch >= 2.2
         if _torch_version_prereq(2, 2):
@@ -277,7 +278,7 @@ FP4_QUANT_TABLE = {
 }
 
 
-# @_maybe_torch_compile
+@_maybe_torch_compile
 def quantize_4bit_impl(
     A: Tensor,
     absmax: Tensor = None,
@@ -342,7 +343,7 @@ def quantize_4bit_impl(
         scaled_A_rem = torch.clamp(A_reshaped[n - rem :] * (1 / absmax[-1]), -1, 1)
         scaled_A = torch.cat([scaled_A, scaled_A_rem], dim=0)
     # map [-1, 1] to nf4/fp4
-    out_uint8 = torch.empty(scaled_A.shape, dtype=torch.uint8, device=scaled_A.device)
+    out_uint8 = torch.empty(scaled_A.shape, dtype=torch.uint8, device=A.device)
     if quant_type == "nf4":
         for i in range(len(NF4_QUANT_TABLE)):
             out_uint8[scaled_A > NF4_QUANT_TABLE[i]] = i
@@ -372,8 +373,7 @@ def quantize_4bit_impl(
 
     return out.unsqueeze(0), state
 
-
-#@_maybe_torch_compile
+@_maybe_torch_compile
 def dequantize_4bit_impl(
     A: Tensor,
     quant_state=None,
