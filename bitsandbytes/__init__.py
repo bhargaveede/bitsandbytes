@@ -37,7 +37,6 @@ register_backend("cpu", CPUBackend())
 # Register HPU Backend, if available
 try:
     import habana_frameworks.torch
-    
     if hasattr(torch, "hpu") and torch.hpu.is_available():
         from .backends.hpu import HPUBackend
 
