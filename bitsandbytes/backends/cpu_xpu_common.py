@@ -24,7 +24,7 @@ except BaseException:
 
 gxx_available = False
 try:
-    subprocess.run(["g++", "--version"])
+    subprocess.run(["g++", "--version"], capture_output=True)  # hide terminal output
     gxx_available = True
 except BaseException:
     warnings.warn("g++ not found, torch.compile disabled for CPU/XPU.")
@@ -445,14 +445,6 @@ def dequantize_4bit_impl(
         quant_state.ipex = False
 
     # Map nf4 to [-1, 1]
-<<<<<<< HEAD
-    out_uint8 = torch.empty(A.size(0) * 2, dtype=torch.uint8, device=A.device)
-    out_uint8[::2] = A.bitwise_and(0xF)
-    out_uint8[1::2] = A.bitwise_right_shift(4)
-    out_dq = torch.empty(out_uint8.shape, dtype=quant_state.code.dtype, device= quant_state.code.device)
-    for i in range(len(quant_state.code)):
-        out_dq[out_uint8 == i] = quant_state.code[i]
-=======
     out_dq = torch.empty(A.size(0) * 2, dtype=torch.int32, device=A.device)
     n = out_dq.numel()
     out_dq[::2] = A & 0xF
@@ -460,7 +452,6 @@ def dequantize_4bit_impl(
     # quant_state.code is fp32, cast to quant_state dtype to avoid the mismatch issue
     quant_state.code = quant_state.code.to(quant_state.dtype)
     out_dq = quant_state.code[out_dq]
->>>>>>> b2ac423 (Enable XPU and optimize cpu/xpu op (#1418))
 
     # Apply scales
     if out_dq.numel() != n:
