@@ -7,6 +7,7 @@ from bitsandbytes.utils import QuantState
 from .base import Backend
 from .cpu_xpu_common import (
     dequantize_4bit_impl,
+    double_quant_impl,
     gemm_4bit_impl,
     igemmlt_impl,
     mm_dequant_impl,
@@ -16,9 +17,34 @@ from .cpu_xpu_common import (
 Tensor = torch.Tensor
 
 
+def assert_on_hpu(tensors):
+    on_hpu = True
+    for t in tensors:
+        if t is None:
+            continue  # NULL pointers are fine
+        on_hpu &= t.device.type == "hpu"
+    if not on_hpu:
+        raise TypeError(
+            "All input tensors need to be on HPU, but found some tensors to not be on HPU:\n"
+            f" {[(t.shape, t.device) if isinstance(t, Tensor) else None for t in tensors]}"
+        )
+    return on_hpu
+
+
 class HPUBackend(Backend):
     mm_dequant_compute_dtype = torch.bfloat16
     mm_dequant_output_dtype = torch.bfloat16
+
+    def double_quant(
+        self,
+        A: torch.Tensor,
+        col_stats: Optional[torch.Tensor] = None,
+        row_stats: Optional[torch.Tensor] = None,
+        out_col: Optional[torch.Tensor] = None,
+        out_row: Optional[torch.Tensor] = None,
+        threshold=0.0,
+    ):
+        raise NotImplementedError("Not yet implemented for HPU backend")
 
     def transform(
         self,
@@ -32,20 +58,10 @@ class HPUBackend(Backend):
     ):
         """
         Transform tensor A to to_order. It is originally designed for CUDA.
-        For HPU, it returns the original tensor if transpose=False.
+        For CPU, it returns the original tensor if transpose=False.
         Otherwise, it returns the transpose of A
         """
-        if transpose:
-            if out is not None:
-                out.copy_(A.T)
-            else:
-                out = A.T
-        else:
-            if out is not None:
-                out.copy_(A)
-            else:
-                out = A
-        return out, state
+        raise NotImplementedError("Not yet implemented for HPU backend")
 
     def igemmlt(
         self,
@@ -56,9 +72,8 @@ class HPUBackend(Backend):
         out: Optional[torch.Tensor] = None,
         Sout: Optional[Tuple[torch.Size, str]] = None,
         dtype=torch.int32,
-    ) -> Union[torch.Tensor, Tuple[Optional[Tuple[torch.Tensor, Tuple[torch.Size,
-                                                                      str]]]]]:
-
+    ) -> Union[torch.Tensor, Tuple[Optional[Tuple[torch.Tensor, Tuple[torch.Size, str]]]]]:
+        assert_on_hpu([A, B])
         return igemmlt_impl(A, B, SA, SB, out, Sout, dtype)
 
     def mm_dequant(
@@ -72,7 +87,7 @@ class HPUBackend(Backend):
         new_col_stats: Optional[torch.Tensor] = None,
         bias: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
-        
+        assert_on_hpu([A, row_stats, col_stats, out, bias])
         return mm_dequant_impl(
             A,
             quant_state,
@@ -95,7 +110,7 @@ class HPUBackend(Backend):
         """
         Extract columns of A by idx
         """
-
+        assert_on_hpu([A])
         return A[:, idx].contiguous()
 
     def quantize_4bit(
@@ -108,12 +123,12 @@ class HPUBackend(Backend):
         quant_type: Literal["fp4", "nf4"] = "fp4",
         quant_storage=torch.uint8,
     ) -> Tuple[torch.Tensor, QuantState]:
-        
         if blocksize is None:
             blocksize = 64
-        assert quant_storage == torch.uint8
-        return quantize_4bit_impl(
-            A, absmax, out, blocksize, compress_statistics, quant_type)
+
+        assert_on_hpu([A, absmax, out])
+        assert quant_storage == torch.uint8, "HPU backend only supports uint8 quant_storage"
+        return quantize_4bit_impl(A, absmax, out, blocksize, compress_statistics, quant_type)
 
     def dequantize_4bit(
         self,
@@ -124,9 +139,10 @@ class HPUBackend(Backend):
         blocksize: int = 64,
         quant_type: Literal["fp4", "nf4"] = "fp4",
     ) -> torch.Tensor:
-    
         if blocksize is None:
             blocksize = 64
+            
+        assert_on_hpu([A, absmax, out])
         return dequantize_4bit_impl(A, quant_state, absmax, out, blocksize, quant_type)
 
     def gemv_4bit(
@@ -138,10 +154,73 @@ class HPUBackend(Backend):
         transposed_B=False,
         state: QuantState = None,
     ) -> torch.Tensor:
-
+        assert_on_hpu([A, B, out])
         if state is None:
-            raise ValueError(
-                "state cannot be None. gemv_4bit() requires the state from quantize_4bit()"
-            )
+            raise ValueError("state cannot be None. gemv_4bit() requires the state from quantize_4bit()")
 
         return gemm_4bit_impl(A, B, out, transposed_A, transposed_B, state)
+
+    def dequantize_blockwise(
+        self,
+        A: torch.Tensor,
+        quant_state: Optional[QuantState] = None,
+        absmax: Optional[torch.Tensor] = None,
+        code: Optional[torch.Tensor] = None,
+        out: Optional[torch.Tensor] = None,
+        blocksize: int = 4096,
+        nested=False,
+    ) -> torch.Tensor:
+        raise NotImplementedError("Not yet implemented for HPU backend")
+
+    def quantize_blockwise(
+        self,
+        A: torch.Tensor,
+        code: Optional[torch.Tensor] = None,
+        absmax: Optional[torch.Tensor] = None,
+        out: Optional[torch.Tensor] = None,
+        blocksize=4096,
+        nested=False,
+    ) -> Tuple[torch.Tensor, QuantState]:
+        raise NotImplementedError("Not yet implemented for HPU backend")
+
+    def optimizer_update_8bit_blockwise(
+        self,
+        optimizer_name: str,
+        g: torch.Tensor,
+        p: torch.Tensor,
+        state1: torch.Tensor,
+        state2: Optional[torch.Tensor],
+        beta1: float,
+        beta2: float,
+        eps: float,
+        step: int,
+        lr: float,
+        qmap1: torch.Tensor,
+        qmap2: Optional[torch.Tensor],
+        absmax1: torch.Tensor,
+        absmax2: Optional[torch.Tensor],
+        weight_decay: float = 0.0,
+        gnorm_scale: float = 1.0,
+        skip_zeros=False,
+    ) -> None:
+        raise NotImplementedError("Not yet implemented for HPU backend")
+
+    def optimizer_update_32bit(
+        self,
+        optimizer_name: str,
+        g: torch.Tensor,
+        p: torch.Tensor,
+        state1: torch.Tensor,
+        beta1: float,
+        eps: float,
+        step: int,
+        lr: float,
+        state2: Optional[torch.Tensor] = None,
+        beta2: float = 0.0,
+        weight_decay: float = 0.0,
+        gnorm_scale: float = 1.0,
+        unorm_vec: Optional[torch.Tensor] = None,
+        max_unorm: float = 0.0,
+        skip_zeros=False,
+    ) -> None:
+        raise NotImplementedError("Not yet implemented for HPU backend")
