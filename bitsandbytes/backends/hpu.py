@@ -138,10 +138,10 @@ class HPUBackend(Backend):
         blocksize: int = 64,
         quant_type: Literal["fp4", "nf4"] = "fp4",
     ) -> torch.Tensor:
-    
+
         if blocksize is None:
             blocksize = 64
-            
+
         assert_on_hpu([A, absmax, out])
         return dequantize_4bit_impl(A, quant_state, absmax, out, blocksize, quant_type)
 

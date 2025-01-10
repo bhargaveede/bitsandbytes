@@ -75,7 +75,6 @@ if hasattr(torch, "xpu") and torch.xpu.is_available():
 if hasattr(torch, "npu") and torch.npu.is_available():
     register_backend("npu", NPUBackend())
 
-
 # import module after decided backends
 if backends:
     from .nn import modules
