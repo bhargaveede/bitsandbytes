@@ -28,10 +28,21 @@ supported_torch_devices = {
     "npu",  # Ascend NPU
     "xpu",  # Intel GPU
     "cpu",
+    "hpu",
 }
 
 # Always register the CPU backend.
 register_backend("cpu", CPUBackend())
+
+# Register HPU Backend, if available
+try:
+    import habana_frameworks.torch
+    if hasattr(torch, "hpu") and torch.hpu.is_available():
+        from .backends.hpu import HPUBackend
+
+        register_backend("hpu", HPUBackend())
+except ImportError:
+    print("Unable to register HPU")
 
 # Register either CUDA or ROCm backend, if available.
 # Only one of these backends can be used at a time, since the torch.device semantics are
@@ -63,7 +74,6 @@ if hasattr(torch, "xpu") and torch.xpu.is_available():
 # Register Ascend NPU backend, if available.
 if hasattr(torch, "npu") and torch.npu.is_available():
     register_backend("npu", NPUBackend())
-
 
 # import module after decided backends
 if backends:

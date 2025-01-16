@@ -1,3 +1,4 @@
+import os
 import subprocess
 from typing import Optional
 import warnings
@@ -20,14 +21,12 @@ except BaseException:
     ipex_cpu = None
     ipex_xpu = None
 
-
 gxx_available = False
 try:
     subprocess.run(["g++", "--version"], capture_output=True)  # hide terminal output
     gxx_available = True
 except BaseException:
     warnings.warn("g++ not found, torch.compile disabled for CPU/XPU.")
-
 
 Tensor = torch.Tensor
 
@@ -56,7 +55,8 @@ def _ipex_xpu_version_prereq(major, minor):
 
 def _maybe_torch_compile(func):
     # torch.compile requires g++ and pytorch >= 2.0
-    if gxx_available and _torch_version_prereq(2, 0) and not ipex_xpu:
+    if gxx_available and _torch_version_prereq(2, 0) and not ipex_xpu and os.getenv(
+            'PT_HPU_LAZY_MODE',1)==0:
         options = {}
         # fx_graph_cache requires pytorch >= 2.2
         if _torch_version_prereq(2, 2):
@@ -66,7 +66,8 @@ def _maybe_torch_compile(func):
 
 
 @_maybe_torch_compile
-def double_quant_impl(A, col_stats=None, row_stats=None, out_col=None, out_row=None, threshold=0.0):
+def double_quant_impl(
+    A, col_stats=None, row_stats=None, out_col=None, out_row=None, threshold=0.0):
     """
     Find absolute max values of each row/column of a tensor, and symmetrically quantize it to int8.
     If threshold > 0.0, only values <= threshold are counted. All outliers are zeroed out in
@@ -115,7 +116,8 @@ def double_quant_impl(A, col_stats=None, row_stats=None, out_col=None, out_row=N
         outlier_cols = outlier_coord[:, 1]  # outlier column for COO sparse tensor
         outlier_values = A[outlier_indices]  # outlier values for COO sparse tensor
         coo_tensor = COOSparseTensor(
-            A.shape[0], A.shape[1], outlier_values.numel(), outlier_rows.int(), outlier_cols.int(), outlier_values
+            A.shape[0], A.shape[1], outlier_values.numel(), outlier_rows.int(),
+            outlier_cols.int(), outlier_values
         )
         if row_stats is None or col_stats is None:
             A[outlier_indices] = 0  # zero out outliers
@@ -374,7 +376,6 @@ def quantize_4bit_impl(
         )
 
     return out.unsqueeze(0), state
-
 
 @_maybe_torch_compile
 def dequantize_4bit_impl(
