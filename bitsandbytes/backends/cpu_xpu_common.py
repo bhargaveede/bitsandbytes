@@ -1,7 +1,7 @@
+import os
 import subprocess
 from typing import Optional
 import warnings
-import os
 
 import torch
 
@@ -20,6 +20,7 @@ try:
 except BaseException:
     ipex_cpu = None
     ipex_xpu = None
+    ipex_cpu_only = None
 
 
 gxx_available = False
