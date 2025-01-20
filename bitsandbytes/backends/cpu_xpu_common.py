@@ -1,3 +1,4 @@
+import os
 import subprocess
 from typing import Optional
 import warnings
@@ -19,6 +20,7 @@ try:
 except BaseException:
     ipex_cpu = None
     ipex_xpu = None
+    ipex_cpu_only = None
 
 
 gxx_available = False
@@ -56,7 +58,7 @@ def _ipex_xpu_version_prereq(major, minor):
 
 def _maybe_torch_compile(func):
     # torch.compile requires g++ and pytorch >= 2.0
-    if gxx_available and _torch_version_prereq(2, 0) and not ipex_xpu:
+    if gxx_available and _torch_version_prereq(2, 0) and not ipex_xpu and os.getenv('PT_HPU_LAZY_MODE',1)==0:
         options = {}
         # fx_graph_cache requires pytorch >= 2.2
         if _torch_version_prereq(2, 2):
@@ -374,7 +376,6 @@ def quantize_4bit_impl(
         )
 
     return out.unsqueeze(0), state
-
 
 @_maybe_torch_compile
 def dequantize_4bit_impl(
