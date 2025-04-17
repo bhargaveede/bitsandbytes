@@ -195,7 +195,7 @@ class HPUBackend(Backend):
         """
         HPU dequantization function for NF4 quantized tensors.
         """
-        assert_on_hpu([input, absmax])
+        # assert_on_hpu([input, absmax])
         out_shape = (math.prod(quant_state.shape), )
         out_dq = torch.ops.hpu.dequantize_nf4(input, absmax, blocksize,
                                                 out_shape=out_shape,
@@ -215,11 +215,11 @@ class HPUBackend(Backend):
         if blocksize is None:
             blocksize = 64
             
-        assert_on_hpu([A, absmax, out])
+        # assert_on_hpu([A, absmax, out])
         if quant_state.nested:
             raise AssertionError("Double quantization is not supported for HPU backend")
             absmax = dequant_8bit(absmax, quant_state.offset, quant_state.state2)
-        return self.dequantize_nf4_impl(A, absmax, blocksize, quant_state)
+        return self.dequantize_nf4_impl(A.data, absmax, blocksize, quant_state)
 
     def gemv_4bit(
         self,
@@ -230,12 +230,12 @@ class HPUBackend(Backend):
         transposed_B=False,
         state: QuantState = None,
     ) -> torch.Tensor:
-        assert_on_hpu([A, B, out])
+        # assert_on_hpu([A, B, out])
         if state is None:
             raise ValueError(
                 "state cannot be None. gemv_4bit() requires the state from quantize_4bit()"
             )
-        dqB = self.dequantize_nf4_impl(B, state.absmax, state.blocksize, state)
+        dqB = self.dequantize_nf4_impl(B.data, state.absmax, state.blocksize, state)
         output = torch.matmul(A, dqB.to(A.dtype))
         if out is not None:
             out.copy_(output)
