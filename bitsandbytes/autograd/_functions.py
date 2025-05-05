@@ -561,7 +561,7 @@ def matmul_4bit(
     bias: Optional[torch.Tensor] = None,
 ):
     assert quant_state is not None
-    if A.device.type in ("cpu", "xpu") and A.requires_grad == False:
+    if A.device.type in ("cpu", "xpu", "hpu") and A.requires_grad == False:
         if getattr(quant_state, "ipex", False):
             B = B.t() if len(B.shape) == 2 else B
             out = F.gemv_4bit(A, B, out, state=quant_state)
