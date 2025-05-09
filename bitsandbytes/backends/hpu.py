@@ -11,7 +11,6 @@ from .cpu_xpu_common import (
     INT8_QUANT_TABLE,
     NF4_QUANT_TABLE,
     dequant_8bit,
-    double_quant_impl,
 )
 
 Tensor = torch.Tensor
@@ -41,8 +40,7 @@ class HPUBackend(Backend):
         out_row: Optional[torch.Tensor] = None,
         threshold=0.0,
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, Optional[torch.Tensor]]:
-        assert_on_hpu([A, col_stats, row_stats, out_col, out_row])
-        return double_quant_impl(A, col_stats, row_stats, out_col, out_row, threshold)
+        raise NotImplementedError("Not yet implemented for HPU backend")
 
     def transform(
         self,
@@ -226,16 +224,7 @@ class HPUBackend(Backend):
         transposed_B=False,
         state: QuantState = None,
     ) -> torch.Tensor:
-        assert_on_hpu([A, B, out])
-        if state is None:
-            raise ValueError("state cannot be None. gemv_4bit() requires the state from quantize_4bit()")
-        dqB = self.dequantize_nf4_impl(B, state.absmax, state.blocksize, state)
-        output = torch.matmul(A, dqB.to(A.dtype))
-        if out is not None:
-            out.copy_(output)
-        else:
-            out = output
-        return out
+        raise NotImplementedError("Not yet implemented for HPU backend")
 
     def int8_vectorwise_dequant(self, A: torch.Tensor, stats: torch.Tensor):
         raise NotImplementedError("Not yet implemented for HPU backend")

@@ -561,7 +561,7 @@ def matmul_4bit(
     bias: Optional[torch.Tensor] = None,
 ):
     assert quant_state is not None
-    if A.device.type in ("cpu", "xpu", "hpu") and A.requires_grad == False:
+    if A.device.type in ("cpu", "xpu") and A.requires_grad == False:
         if getattr(quant_state, "ipex", False):
             B = B.t() if len(B.shape) == 2 else B
             out = F.gemv_4bit(A, B, out, state=quant_state)
@@ -570,7 +570,7 @@ def matmul_4bit(
             return out
         else:
             return MatMul4Bit.apply(A, B, out, bias, quant_state)
-    elif A.numel() == A.shape[-1] and A.requires_grad == False and A.device.type != "npu":
+    elif A.numel() == A.shape[-1] and A.requires_grad == False and A.device.type not in ("npu", "hpu"):
         if A.shape[-1] % quant_state.blocksize != 0:
             warn(
                 f"Some matrices hidden dimension is not a multiple of {quant_state.blocksize} and efficient inference kernels are not supported for these (slow). Matrix input size found: {A.shape}",
