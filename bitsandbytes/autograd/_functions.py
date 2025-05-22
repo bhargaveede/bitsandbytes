@@ -378,7 +378,7 @@ def matmul_4bit(
 ):
     assert quant_state is not None
 
-    if A.numel() == A.shape[-1] and A.requires_grad == False:
+    if A.numel() == A.shape[-1] and A.requires_grad == False and A.device.type != "hpu":
         if A.shape[-1] % quant_state.blocksize != 0:
             warn(
                 f"Some matrices hidden dimension is not a multiple of {quant_state.blocksize} and efficient inference kernels are not supported for these (slow). Matrix input size found: {A.shape}",

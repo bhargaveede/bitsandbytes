@@ -142,3 +142,21 @@ def _(A: torch.Tensor, threshold=0.0):
         A[outliers] = outlier_restore
 
     return out_row, row_stats, outlier_cols
+
+
+@register_kernel("bitsandbytes::dequantize_blockwise", "default")
+def _(A: torch.Tensor, absmax: torch.Tensor, code: torch.Tensor, blocksize: int, dtype: torch.dtype) -> torch.Tensor:
+
+    torch._check_is_size(blocksize)
+    torch._check(A.dtype == torch.uint8, lambda: f"A must be uint8, got {A.dtype}")
+
+    out = code[A.reshape(-1).int()]
+    blocks = out.shape[-1] // blocksize
+    res = out.shape[-1] % blocksize
+    if res != 0:
+        out = torch.nn.functional.pad(out, (0, blocksize - res), mode="constant", value=0)
+    out = (out.view(-1, blocksize) * absmax.view(-1, 1)).to(dtype).reshape(-1)
+    out = out[: blocks * blocksize + res]
+    out = out.reshape(A.shape)
+
+    return out

@@ -34,6 +34,9 @@ supported_torch_devices = {
 if torch.cuda.is_available():
     from .backends.cuda import ops as cuda_ops
 
+if hasattr(torch, "hpu") and torch.hpu.is_available():
+    from .backends.hpu import ops as hpu_ops
+
 
 def _import_backends():
     """
