@@ -4,7 +4,7 @@ from typing import Optional
 import torch
 
 from ..._ops import register_kernel
-
+from ..utils import CODE
 
 @register_kernel("bitsandbytes::int8_mm_dequant", "default")
 def _(
@@ -142,6 +142,75 @@ def _(A: torch.Tensor, threshold=0.0):
         A[outliers] = outlier_restore
 
     return out_row, row_stats, outlier_cols
+
+
+@register_kernel("bitsandbytes::quantize_blockwise", "default")
+def _(A: torch.Tensor, code: torch.Tensor, blocksize: int) -> tuple[torch.Tensor, torch.Tensor]:
+    torch._check_is_size(blocksize)
+
+    n = A.numel()
+    rem = n % blocksize
+    has_rem = rem > 0
+    blocks = n // blocksize + has_rem
+    absmax = torch.zeros((blocks,), device=A.device, dtype=torch.float32)
+    A_reshaped = A.reshape(n)
+    A_com = A_reshaped[: n - rem]
+    A_com_reshaped = A_com.reshape(n // blocksize, blocksize)
+    absmax[: blocks - has_rem] = torch.abs(A_com_reshaped).max(dim=-1)[0]
+    scaled_A = torch.clamp(A_com_reshaped * (1 / absmax[: blocks - has_rem].view(-1, 1)), -1, 1)
+    scaled_A = scaled_A.reshape(-1)
+    if has_rem:
+        absmax[-1] = torch.abs(A_reshaped[n - rem :]).max()
+        scaled_A_rem = torch.clamp(A_reshaped[n - rem :] * (1 / absmax[-1]), -1, 1)
+        scaled_A = torch.cat([scaled_A, scaled_A_rem], dim=0)
+
+    diff = torch.abs(scaled_A.unsqueeze(-1) - code.to(scaled_A.device))
+    out = torch.argmin(diff, dim=-1).to(torch.uint8).to(scaled_A.device).reshape(A.shape)
+
+    return out, absmax
+
+
+@register_kernel("bitsandbytes::quantize_4bit", "default")
+def _(
+    A: torch.Tensor, blocksize: int, quant_type: str, quant_storage: torch.dtype
+) -> tuple[torch.Tensor, torch.Tensor]:
+    torch._check_is_size(blocksize)
+    torch._check(quant_type in ("nf4", "fp4"), lambda: f"quant_type must be nf4 or fp4, got {quant_type}")
+    torch._check(
+        A.dtype in [torch.bfloat16, torch.float16, torch.float32],
+        lambda: f"Blockwise 4bit quantization only supports 16/32-bit floats, but got {A.dtype}",
+    )
+
+    n = A.numel()
+    full_blocks = n // blocksize
+    rem = n % blocksize
+    blocks = full_blocks + 1 if rem else full_blocks
+    absmax = torch.zeros((blocks,), device=A.device, dtype=torch.float32)
+    A_flattened = A.reshape(n)
+
+    # Scale full blocks of the tensor to [-1, 1]
+    A_full_blocks = A_flattened[: n - rem].reshape(n // blocksize, blocksize)
+    absmax[:full_blocks] = torch.abs(A_full_blocks).max(dim=-1)[0]
+    scaled = torch.clamp(A_full_blocks * (1 / absmax[:full_blocks].view(-1, 1)), -1, 1).reshape(-1)
+
+    # Scale any partial block
+    if rem:
+        A_rem = A_flattened[-rem:]
+        absmax[-1] = torch.abs(A_rem).max()
+        scaled_rem = torch.clamp(A_rem * (1 / absmax[-1]), -1, 1)
+        scaled = torch.cat([scaled, scaled_rem], dim=0)
+
+    # Quantize with the lookup table
+    code = CODE[quant_type].to(scaled.device).to(scaled.dtype)
+    quantized = torch.argmin(torch.abs(scaled.view(-1, 1) - code), dim=-1, keepdim=True).to(torch.uint8)
+
+    # Pack two quantized values per byte
+    packed = quantized[::2] << 4 | quantized[1::2]
+
+    if quant_storage != torch.uint8:
+        packed = packed.squeeze().view(quant_storage).unsqueeze(1)
+
+    return packed, absmax.float()
 
 
 @register_kernel("bitsandbytes::dequantize_blockwise", "default")
