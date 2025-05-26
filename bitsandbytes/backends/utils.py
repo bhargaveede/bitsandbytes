@@ -1,7 +1,7 @@
-import torch
 import subprocess
-from packaging import version
 
+from packaging import version
+import torch
 
 _NF4_QUANT_TABLE = torch.tensor(
     [
@@ -58,9 +58,6 @@ def get_habana_frameworks_version():
         "pip list | grep habana-torch-plugin",
         shell=True,
         text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
     )
     return version.parse(output.stdout.split("\n")[0].split()[-1])
-
-

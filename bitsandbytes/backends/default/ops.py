@@ -6,6 +6,7 @@ import torch
 from ..._ops import register_kernel
 from ..utils import CODE
 
+
 @register_kernel("bitsandbytes::int8_mm_dequant", "default")
 def _(
     A: torch.Tensor,
@@ -215,7 +216,6 @@ def _(
 
 @register_kernel("bitsandbytes::dequantize_blockwise", "default")
 def _(A: torch.Tensor, absmax: torch.Tensor, code: torch.Tensor, blocksize: int, dtype: torch.dtype) -> torch.Tensor:
-
     torch._check_is_size(blocksize)
     torch._check(A.dtype == torch.uint8, lambda: f"A must be uint8, got {A.dtype}")
 
